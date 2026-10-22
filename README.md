@@ -1,4 +1,4 @@
-# Flutter
+# Flutter Atelier
 
 화면이랑 상태를 만져 본 코드를 남겨 둔다. 설명은 폴더 안 README에 있다.
 
