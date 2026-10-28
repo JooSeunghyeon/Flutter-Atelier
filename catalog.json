@@ -2,5 +2,9 @@
   {
     "folder": "dart-required-named-default",
     "summary": "Dart 명명된 매개변수에 required와 기본값을 함께 썼을 때 누락 호출의 컴파일 결과와 기본값 적용 방식을 코드로 확인한다."
+  },
+  {
+    "folder": "dart-factory-instance-cache",
+    "summary": "factory 생성자와 private _internal 생성자로 키별 인스턴스 캐시를 만들고, 같은 키 호출이 identical로 같은 객체를 돌려주는지 확인한다."
   }
 ]
