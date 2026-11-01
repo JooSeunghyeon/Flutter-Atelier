@@ -6,5 +6,9 @@
   {
     "folder": "dart-factory-instance-cache",
     "summary": "factory 생성자와 private _internal 생성자로 키별 인스턴스 캐시를 만들고, 같은 키 호출이 identical로 같은 객체를 돌려주는지 확인한다."
+  },
+  {
+    "folder": "mixin-on-constraint-class-hierarchy",
+    "summary": "Dart mixin의 on 제약으로 State 서브클래스에만 mixin을 적용하고, 조건을 어기는 클래스에서 컴파일 오류가 나는지 확인한다."
   }
 ]
