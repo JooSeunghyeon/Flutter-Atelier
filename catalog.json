@@ -14,5 +14,9 @@
   {
     "folder": "riverpod-family-same-args-identical",
     "summary": "Riverpod 3 family provider에 같은 인자를 두 번 넘겼을 때 두 watch가 같은 인스턴스를 공유하는지 identical로 확인한다."
+  },
+  {
+    "folder": "stream-error-cancel-on-error-ondone",
+    "summary": "StreamSubscription에서 cancelOnError 옵션에 따른 에러 이벤트 처리와 구독 취소 순서, handleError 필터링, close 후 add/addError의 StateError를 실행으로 검증한다."
   }
 ]
