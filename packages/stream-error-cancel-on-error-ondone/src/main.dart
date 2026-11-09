@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 class EventLog {
   final List<String> events = [];
@@ -15,17 +16,31 @@ class EventLog {
   String toString() => events.join(', ');
 }
 
-void check(bool condition, String message) {
-  if (!condition) {
-    print('실패: $message');
-    throw Exception(message);
+void checkSequence(List<String> actual, List<String> expected, String label) {
+  if (actual.length != expected.length) {
+    print('실패 ($label): 길이 불일치. 기대=${expected.length}, 실제=${actual.length}');
+    print('  기대: ${expected.join(', ')}');
+    print('  실제: ${actual.join(', ')}');
+    exit(1);
+  }
+  for (int i = 0; i < actual.length; i++) {
+    if (actual[i] != expected[i]) {
+      print('실패 ($label): 위치 $i에서 불일치');
+      print('  기대: ${expected.join(', ')}');
+      print('  실제: ${actual.join(', ')}');
+      exit(1);
+    }
   }
 }
 
 Future<void> testCancelOnErrorFalse() async {
   print('\n=== cancelOnError: false (기본) ===');
   final log = EventLog();
-  final controller = StreamController<int>();
+  final controller = StreamController<int>(
+    onCancel: () {
+      log.add('onCancel');
+    },
+  );
 
   controller.stream.listen(
     (data) => log.add('data:$data'),
@@ -44,12 +59,16 @@ Future<void> testCancelOnErrorFalse() async {
   await Future.delayed(Duration.zero);
 
   print('이벤트: $log');
-  check(log.events.contains('data:1'), 'data:1이 있어야 함');
-  check(log.events.contains('error:에러1'), 'error:에러1이 있어야 함');
-  check(log.events.contains('data:2'), '에러 후 data:2가 있어야 함');
-  check(log.events.contains('error:에러2'), 'error:에러2가 있어야 함');
-  check(log.events.contains('data:3'), '에러 후 data:3이 있어야 함');
-  check(log.events.contains('onDone'), 'onDone이 호출되어야 함');
+  final expected = [
+    'data:1',
+    'error:에러1',
+    'data:2',
+    'error:에러2',
+    'data:3',
+    'onCancel',
+    'onDone',
+  ];
+  checkSequence(log.events, expected, 'cancelOnError: false');
   print('통과');
 }
 
@@ -77,11 +96,12 @@ Future<void> testCancelOnErrorTrue() async {
   await Future.delayed(Duration.zero);
 
   print('이벤트: $log');
-  check(log.events.contains('data:1'), 'data:1이 있어야 함');
-  check(log.events.contains('error:에러1'), 'error:에러1이 있어야 함');
-  check(!log.events.contains('data:2'), '에러 후 data:2가 없어야 함');
-  check(!log.events.contains('onDone'), 'onDone이 호출되지 않아야 함');
-  check(log.events.contains('onCancel'), 'onCancel이 호출되어야 함');
+  final expected = [
+    'data:1',
+    'onCancel',
+    'error:에러1',
+  ];
+  checkSequence(log.events, expected, 'cancelOnError: true');
   print('통과');
 }
 
@@ -98,32 +118,27 @@ Future<void> testAwaitFor() async {
   controller.addError('에러1');
   controller.add(2);
 
-  bool errorCaught = false;
-  bool finallyRan = false;
-
   try {
     await for (final value in controller.stream) {
       log.add('data:$value');
     }
   } catch (e) {
     log.add('catch:$e');
-    errorCaught = true;
   } finally {
     log.add('finally');
-    finallyRan = true;
   }
 
   await controller.close();
   await Future.delayed(Duration.zero);
 
   print('이벤트: $log');
-  check(log.events.contains('data:1'), 'data:1이 있어야 함');
-  check(log.events.contains('catch:에러1'), 'catch:에러1이 있어야 함');
-  check(!log.events.contains('data:2'), '에러 후 data:2가 없어야 함');
-  check(log.events.contains('onCancel'), 'onCancel이 호출되어야 함');
-  check(log.events.contains('finally'), 'finally가 실행되어야 함');
-  check(errorCaught, '에러가 catch되어야 함');
-  check(finallyRan, 'finally가 실행되어야 함');
+  final expected = [
+    'data:1',
+    'onCancel',
+    'catch:에러1',
+    'finally',
+  ];
+  checkSequence(log.events, expected, 'await for');
   print('통과');
 }
 
@@ -153,12 +168,15 @@ Future<void> testHandleError() async {
   await Future.delayed(Duration.zero);
 
   print('이벤트: $log');
-  check(log.events.contains('data:1'), 'data:1이 있어야 함');
-  check(log.events.contains('handled:복구가능'), '복구가능 에러가 처리되어야 함');
-  check(log.events.contains('data:2'), '복구 후 data:2가 있어야 함');
-  check(log.events.contains('error:복구불가'), '복구불가 에러가 전달되어야 함');
-  check(log.events.contains('data:3'), '에러 후 data:3이 있어야 함');
-  check(log.events.contains('onDone'), 'onDone이 호출되어야 함');
+  final expected = [
+    'data:1',
+    'handled:복구가능',
+    'data:2',
+    'error:복구불가',
+    'data:3',
+    'onDone',
+  ];
+  checkSequence(log.events, expected, 'handleError');
   print('통과');
 }
 
@@ -176,8 +194,11 @@ Future<void> testCloseAfterAdd() async {
   await controller.close();
   await Future.delayed(Duration.zero);
 
-  check(log.events.contains('data:1'), 'data:1이 있어야 함');
-  check(log.events.contains('onDone'), 'onDone이 호출되어야 함');
+  if (!log.events.contains('data:1') || !log.events.contains('onDone')) {
+    print('실패: close 전 이벤트 확인 실패');
+    print('  실제: ${log.events.join(', ')}');
+    exit(1);
+  }
 
   bool addThrew = false;
   try {
@@ -198,9 +219,18 @@ Future<void> testCloseAfterAdd() async {
   await Future.delayed(Duration.zero);
 
   print('이벤트: $log');
-  check(addThrew, 'close() 후 add가 StateError를 던져야 함');
-  check(addErrorThrew, 'close() 후 addError가 StateError를 던져야 함');
-  check(!log.events.contains('data:2'), 'close() 후 data:2가 없어야 함');
+  if (!addThrew) {
+    print('실패: close() 후 add가 StateError를 던지지 않음');
+    exit(1);
+  }
+  if (!addErrorThrew) {
+    print('실패: close() 후 addError가 StateError를 던지지 않음');
+    exit(1);
+  }
+  if (log.events.contains('data:2')) {
+    print('실패: close() 후 data:2가 추가되면 안 됨');
+    exit(1);
+  }
   print('통과');
 }
 
@@ -212,17 +242,9 @@ void main() async {
     await testHandleError();
     await testCloseAfterAdd();
     print('\nALL_CHECKS_PASSED');
-  } catch (e) {
+  } catch (e, stackTrace) {
     print('\n실패 발생: $e');
+    print(stackTrace);
     exit(1);
   }
-}
-
-void exit(int code) {
-  throw _ExitException(code);
-}
-
-class _ExitException implements Exception {
-  final int code;
-  _ExitException(this.code);
 }
