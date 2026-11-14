@@ -22,7 +22,11 @@ class LateFinalReentrant {
   String _getValue() {
     _reentrantAttempt++;
     if (_reentrantAttempt == 1) {
-      return value;
+      try {
+        return value;
+      } catch (e) {
+        rethrow;
+      }
     }
     return '완료';
   }
@@ -56,6 +60,8 @@ final topLevelValue = topFlaky();
 
 class RememberFailureCache {
   Object? _cached;
+  StackTrace? _stackTrace;
+  bool _hasValue = false;
   bool _hasFailed = false;
 
   int callCount = 0;
@@ -63,24 +69,28 @@ class RememberFailureCache {
   T get<T>(T Function() compute) {
     callCount++;
     if (_hasFailed) {
-      throw _cached as Exception;
+      Error.throwWithStackTrace(_cached!, _stackTrace!);
     }
-    if (_cached != null) {
+    if (_hasValue) {
       return _cached as T;
     }
     try {
       final result = compute();
       _cached = result;
+      _hasValue = true;
       return result;
-    } catch (e) {
+    } catch (e, stackTrace) {
       _hasFailed = true;
       _cached = e;
+      _stackTrace = stackTrace;
       rethrow;
     }
   }
 
   void reset() {
     _cached = null;
+    _stackTrace = null;
+    _hasValue = false;
     _hasFailed = false;
     callCount = 0;
   }
@@ -88,24 +98,30 @@ class RememberFailureCache {
 
 class RetryLimitCache {
   Object? _cached;
+  bool _hasValue = false;
   int _failCount = 0;
-  final int maxRetries;
+  final int maxAttempts;
 
   int callCount = 0;
 
-  RetryLimitCache(this.maxRetries);
+  RetryLimitCache(this.maxAttempts) {
+    if (maxAttempts < 1) {
+      throw ArgumentError('maxAttempts는 1 이상이어야 합니다: $maxAttempts');
+    }
+  }
 
   T get<T>(T Function() compute) {
     callCount++;
-    if (_cached != null && _cached is! Exception) {
+    if (_hasValue) {
       return _cached as T;
     }
-    if (_failCount >= maxRetries) {
+    if (_failCount >= maxAttempts) {
       throw Exception('재시도 한도 초과($_failCount회 실패)');
     }
     try {
       final result = compute();
       _cached = result;
+      _hasValue = true;
       return result;
     } catch (e) {
       _failCount++;
@@ -115,6 +131,7 @@ class RetryLimitCache {
 
   void reset() {
     _cached = null;
+    _hasValue = false;
     _failCount = 0;
     callCount = 0;
   }
@@ -183,6 +200,12 @@ void testLateFinalReentrant() {
     errorMessage != null && errorMessage.contains('LateInitializationError'),
     '재진입 시 LateInitializationError 발생',
   );
+  checkEquals(_reentrantAttempt, 2, '초기화식은 2번 실행됨 (바깥 + 안쪽 재진입)');
+
+  final valueAfterError = obj.value;
+  print('오류 후 필드 값: $valueAfterError');
+  checkEquals(valueAfterError, '완료', '오류 후 필드는 안쪽 실행이 저장한 값을 가짐');
+  checkEquals(_reentrantAttempt, 2, '오류 후 접근은 초기화식을 다시 실행하지 않음');
 
   print('통과');
 }

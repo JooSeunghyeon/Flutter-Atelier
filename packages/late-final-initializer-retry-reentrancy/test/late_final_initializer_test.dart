@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../src/main.dart' hide main;
 
 int _testAttempt = 0;
 
@@ -14,32 +15,22 @@ class TestLateFinalRetry {
   }
 }
 
-int _reentrantTestAttempt = 0;
+int _testReentrantAttempt = 0;
 
 class TestLateFinalReentrant {
   late final String value = _testGetValue();
 
   String _testGetValue() {
-    _reentrantTestAttempt++;
-    if (_reentrantTestAttempt == 1) {
-      return value;
+    _testReentrantAttempt++;
+    if (_testReentrantAttempt == 1) {
+      try {
+        return value;
+      } catch (e) {
+        rethrow;
+      }
     }
-    return '완료';
+    return '테스트 완료';
   }
-}
-
-class TestLateFinalSelfCycle {
-  late final int self = self + 1;
-}
-
-class TestLateFinalMutualCycleA {
-  late final TestLateFinalMutualCycleB b = TestLateFinalMutualCycleB();
-  late final int value = b.value + 1;
-}
-
-class TestLateFinalMutualCycleB {
-  late final TestLateFinalMutualCycleA a = TestLateFinalMutualCycleA();
-  late final int value = a.value + 1;
 }
 
 int _topTestAttempt = 0;
@@ -53,58 +44,6 @@ String topTestFlaky() {
 }
 
 final topTestValue = topTestFlaky();
-
-class TestRememberFailureCache {
-  Object? _cached;
-  bool _hasFailed = false;
-  int callCount = 0;
-
-  T get<T>(T Function() compute) {
-    callCount++;
-    if (_hasFailed) {
-      throw _cached as Exception;
-    }
-    if (_cached != null) {
-      return _cached as T;
-    }
-    try {
-      final result = compute();
-      _cached = result;
-      return result;
-    } catch (e) {
-      _hasFailed = true;
-      _cached = e;
-      rethrow;
-    }
-  }
-}
-
-class TestRetryLimitCache {
-  Object? _cached;
-  int _failCount = 0;
-  final int maxRetries;
-  int callCount = 0;
-
-  TestRetryLimitCache(this.maxRetries);
-
-  T get<T>(T Function() compute) {
-    callCount++;
-    if (_cached != null && _cached is! Exception) {
-      return _cached as T;
-    }
-    if (_failCount >= maxRetries) {
-      throw Exception('테스트 재시도 한도 초과($_failCount회 실패)');
-    }
-    try {
-      final result = compute();
-      _cached = result;
-      return result;
-    } catch (e) {
-      _failCount++;
-      rethrow;
-    }
-  }
-}
 
 void check(bool condition, String message) {
   if (!condition) {
@@ -141,7 +80,7 @@ void testLateFinalInitializerRetry() {
 
 void testLateFinalInitializerReentrant() {
   print('테스트: late final 재진입');
-  _reentrantTestAttempt = 0;
+  _testReentrantAttempt = 0;
   final obj = TestLateFinalReentrant();
 
   bool threw = false;
@@ -158,13 +97,18 @@ void testLateFinalInitializerReentrant() {
     error.toString().contains('LateInitializationError'),
     '재진입 시 LateInitializationError 발생',
   );
+  check(_testReentrantAttempt == 2, '초기화식은 2번 실행됨 (바깥 + 안쪽 재진입)');
+
+  final valueAfterError = obj.value;
+  check(valueAfterError == '테스트 완료', '오류 후 필드는 안쪽 실행이 저장한 값을 가짐');
+  check(_testReentrantAttempt == 2, '오류 후 접근은 초기화식을 다시 실행하지 않음');
 
   print('  통과');
 }
 
 void testLateFinalSelfCycleStack() {
   print('테스트: late final 자기 참조 순환');
-  final obj = TestLateFinalSelfCycle();
+  final obj = LateFinalSelfCycle();
 
   bool threw = false;
   Object? error;
@@ -183,7 +127,7 @@ void testLateFinalSelfCycleStack() {
 
 void testLateFinalMutualCycleStack() {
   print('테스트: late final 상호 참조 순환');
-  final objA = TestLateFinalMutualCycleA();
+  final objA = LateFinalMutualCycleA();
 
   bool threw = false;
   Object? error;
@@ -224,7 +168,7 @@ void testTopLevelInitializerRetry() {
 
 void testRememberFailureCacheNoRetry() {
   print('테스트: 실패 기억 캐시는 재시도하지 않음');
-  final cache = TestRememberFailureCache();
+  final cache = RememberFailureCache();
   int computeCount = 0;
 
   String compute() {
@@ -262,7 +206,7 @@ void testRememberFailureCacheNoRetry() {
 
 void testRetryLimitCacheRetries() {
   print('테스트: 재시도 한도 캐시는 한도 내에서 재시도');
-  final cache = TestRetryLimitCache(3);
+  final cache = RetryLimitCache(3);
   int computeCount = 0;
 
   String compute() {
@@ -306,7 +250,7 @@ void testRetryLimitCacheRetries() {
 
 void testRetryLimitCacheExceeded() {
   print('테스트: 재시도 한도 캐시는 한도 초과 시 재시도 중단');
-  final cache = TestRetryLimitCache(2);
+  final cache = RetryLimitCache(2);
   int computeCount = 0;
 
   String compute() {
@@ -392,6 +336,116 @@ void testBoundarySuccessOnFirstAccess() {
   print('  통과');
 }
 
+void testBoundaryStateError() {
+  print('테스트: 경계 - StateError를 던지면 실패 기억 캐시가 같은 인스턴스를 던짐');
+  final cache = RememberFailureCache();
+  int computeCount = 0;
+  final stateError = StateError('테스트 상태 오류');
+
+  String compute() {
+    computeCount++;
+    throw stateError;
+  }
+
+  Object? firstError;
+  try {
+    cache.get(compute);
+  } catch (e) {
+    firstError = e;
+  }
+
+  check(firstError == stateError, '첫 접근은 StateError를 던짐');
+  check(computeCount == 1, 'compute는 1번 호출됨');
+
+  Object? secondError;
+  try {
+    cache.get(compute);
+  } catch (e) {
+    secondError = e;
+  }
+
+  check(secondError == stateError, '두 번째 접근도 같은 StateError 인스턴스를 던짐');
+  check(computeCount == 1, 'compute는 여전히 1번만 호출됨');
+
+  print('  통과');
+}
+
+void testBoundaryNullResult() {
+  print('테스트: 경계 - null 결과가 두 캐시 모두에서 1회만 계산됨');
+
+  final rememberCache = RememberFailureCache();
+  int rememberComputeCount = 0;
+  String? rememberCompute() {
+    rememberComputeCount++;
+    return null;
+  }
+
+  final firstResult = rememberCache.get(rememberCompute);
+  check(firstResult == null, '실패 기억 캐시: 첫 접근은 null 반환');
+  check(rememberComputeCount == 1, '실패 기억 캐시: compute는 1번 호출됨');
+
+  final secondResult = rememberCache.get(rememberCompute);
+  check(secondResult == null, '실패 기억 캐시: 두 번째 접근도 null 반환');
+  check(rememberComputeCount == 1, '실패 기억 캐시: compute는 여전히 1번만 호출됨');
+
+  final retryCache = RetryLimitCache(3);
+  int retryComputeCount = 0;
+  String? retryCompute() {
+    retryComputeCount++;
+    return null;
+  }
+
+  final firstRetryResult = retryCache.get(retryCompute);
+  check(firstRetryResult == null, '재시도 한도 캐시: 첫 접근은 null 반환');
+  check(retryComputeCount == 1, '재시도 한도 캐시: compute는 1번 호출됨');
+
+  final secondRetryResult = retryCache.get(retryCompute);
+  check(secondRetryResult == null, '재시도 한도 캐시: 두 번째 접근도 null 반환');
+  check(retryComputeCount == 1, '재시도 한도 캐시: compute는 여전히 1번만 호출됨');
+
+  print('  통과');
+}
+
+void testBoundaryExceptionValue() {
+  print('테스트: 경계 - Exception 인스턴스를 값으로 반환하면 재시도 한도 캐시가 캐시함');
+  final cache = RetryLimitCache(3);
+  int computeCount = 0;
+  final exceptionValue = Exception('값으로 반환되는 예외');
+
+  Exception compute() {
+    computeCount++;
+    return exceptionValue;
+  }
+
+  final firstResult = cache.get(compute);
+  check(firstResult == exceptionValue, '첫 접근은 Exception 값을 반환');
+  check(computeCount == 1, 'compute는 1번 호출됨');
+
+  final secondResult = cache.get(compute);
+  check(secondResult == exceptionValue, '두 번째 접근도 같은 Exception 값을 반환');
+  check(computeCount == 1, 'compute는 여전히 1번만 호출됨 (재호출하지 않음)');
+
+  print('  통과');
+}
+
+void testBoundaryMaxAttemptsZero() {
+  print('테스트: 경계 - maxAttempts가 0이면 ArgumentError');
+
+  bool threw = false;
+  Object? error;
+  try {
+    RetryLimitCache(0);
+  } catch (e) {
+    threw = true;
+    error = e;
+  }
+
+  check(threw, 'maxAttempts 0은 예외를 던져야 함');
+  check(error is ArgumentError, 'maxAttempts 0은 ArgumentError를 던짐');
+
+  print('  통과');
+}
+
 void main() {
   print('=== late final 초기화 동작 테스트 시작 ===\n');
 
@@ -406,6 +460,10 @@ void main() {
     testRetryLimitCacheExceeded();
     testBoundaryNoInitializer();
     testBoundarySuccessOnFirstAccess();
+    testBoundaryStateError();
+    testBoundaryNullResult();
+    testBoundaryExceptionValue();
+    testBoundaryMaxAttemptsZero();
 
     print('\n모든 테스트 통과');
   } catch (e, stackTrace) {
