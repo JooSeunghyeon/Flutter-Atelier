@@ -4,21 +4,23 @@ Dart에서 리스너 목록을 순회하며 알림을 보내는 도중 리스너
 
 ## 검증하는 질문
 
-1. **Naive for-in 순회**: 알림 중 리스너를 제거하면 `ConcurrentModificationError`가 발생하는가? 첫 리스너는 실행되는가? 리스너 예외가 뒤 리스너 실행을 막는가?
-2. **인덱스 for 루프**: 자기 자신을 제거하는 리스너는 다음 리스너를 건너뛰게 하는가? 다음 알림에서는 정상 호출되는가?
+1. **Naive for-in 순회**: 알림 중 리스너를 제거하면 `ConcurrentModificationError`가 발생하는가? 알림 중 추가도 다음 moveNext에서 ConcurrentModificationError가 발생하는가? 첫 리스너는 실행되는가? 리스너 예외가 뒤 리스너 실행을 막는가?
+2. **인덱스 for 루프**: 자기 자신을 제거하는 리스너는 다음 리스너를 건너뛰게 하는가? 알림 중 끝에 추가된 리스너는 루프 조건이 길이를 재평가하여 같은 라운드에 호출되는가? 다음 알림에서는 정상 호출되는가?
 3. **스냅샷 복사**: 알림마다 `List.of`로 복사하면 오류가 없는가? 앞 리스너가 제거한 뒤 리스너가 그 라운드에 호출되는가? 알림 중 추가된 리스너는 다음 라운드부터 호출되는가? 복사 원소 수는 리스너 수 × 알림 횟수인가?
 4. **지연 제거 (Flutter ChangeNotifier 방식)**: 알림 중 제거된 리스너는 즉시 호출되지 않는가? 슬롯을 null로 비우고 가장 바깥 notify 종료 시 1회만 압축하는가? 재진입 notify 지원하는가? 리스너 예외를 errors에 수집하고 나머지 리스너를 계속 호출하는가? 알림 중 dispose는 StateError를 던지는가? dispose 후 StateError를 던지는가?
 
 각 시나리오는 호출 로그와 오류 타입으로 동작을 확인한다.
 
+**공통 시나리오 설명**: 리스너 A는 자기 자신을 제거하고, B는 C를 제거하고 D를 추가하며, C는 단순 로그만 남긴다. 첫 알림 후 A와 C가 제거되고 D가 추가된다. 두 번째 알림에서 B가 다시 실행되어 (이미 없는) C 제거를 시도하고 D를 또 추가하므로, 두 번째 알림 후 D가 두 번 등록되어 listenerCount는 3이 된다 (B, D, D).
+
 ## 구현 비교
 
 | 구현 | 알림 중 제거 | 제거된 리스너 호출 | 추가 리스너 호출 시점 | 알림당 복사 원소 수 | 예외 처리 |
 |------|-------------|-------------------|---------------------|-------------------|-----------|
-| NaiveForInNotifier | ConcurrentModificationError | N/A | N/A | 0 | 전파 (뒤 리스너 실행 중단) |
-| IndexLoopNotifier | 다음 리스너 건너뜀 (조용한 버그) | N/A | N/A | 0 | 전파 (뒤 리스너 실행 중단) |
-| SnapshotNotifier | 오류 없음 | 그 라운드에만 호출 | 다음 라운드부터 | 리스너 수 | 전파 (뒤 리스너 실행 중단) |
-| DeferredRemovalNotifier | 오류 없음 | 호출 안 됨 | 다음 라운드부터 | 0 | errors에 누적, 계속 실행 |
+| NaiveForInNotifier | ConcurrentModificationError | N/A | add도 다음 moveNext에서 ConcurrentModificationError | 0 | 전파 (뒤 리스너 실행 중단) |
+| IndexLoopNotifier | 다음 리스너 건너뜀 (조용한 버그) | N/A | 같은 라운드 (끝에 추가되면 길이 재평가로 호출) | 0 | 전파 (뒤 리스너 실행 중단) |
+| SnapshotNotifier | 오류 없음 | 그 라운드에만 호출 | 다음 라운드부터 | 매 알림마다 리스너 수만큼 복사 | 전파 (뒤 리스너 실행 중단) |
+| DeferredRemovalNotifier | 오류 없음 | 호출 안 됨 | 다음 라운드부터 | 제거 없으면 0, 알림 중 제거 있으면 압축 시 남은 리스너 수 | errors에 누적, 계속 실행 |
 
 ## 핵심 코드 발췌
 
@@ -272,11 +274,13 @@ NaiveForInNotifier 테스트
 
 ✓ Naive: 자기 제거 리스너에서 ConcurrentModificationError, 첫 리스너는 실행됨
 ✓ Naive: 리스너 예외가 뒤 리스너 실행을 막음
+✓ Naive: 알림 중 add도 다음 moveNext에서 ConcurrentModificationError
 
 IndexLoopNotifier 테스트
 
 ✓ IndexLoop: 자기 제거 시 다음 리스너가 건너뛰어짐
 ✓ IndexLoop: 다음 라운드에는 호출됨
+✓ IndexLoop: 알림 중 끝에 추가된 리스너가 같은 라운드에 호출됨 (길이 재평가)
 
 SnapshotNotifier 테스트
 
@@ -305,8 +309,8 @@ DeferredRemovalNotifier 테스트
 ✓ Deferred: dispose 후 StateError
 
 === 테스트 결과 ===
-전체: 33개
-통과: 33개
+전체: 35개
+통과: 35개
 실패: 0개
 
 모든 테스트 통과!
@@ -316,7 +320,7 @@ DeferredRemovalNotifier 테스트
 
 - **for-in은 컬렉션 변경에 민감하다**: Dart의 `for-in` 루프는 Iterator를 사용하며, 순회 중 컬렉션을 변경하면 `ConcurrentModificationError`가 발생한다. 이는 List, Set, Map.keys 모두에 적용된다. 단, Map.keys 순회 중 기존 키의 **값 갱신**은 키를 추가/제거하지 않으므로 오류가 발생하지 않는다.
 
-- **인덱스 루프는 조용히 건너뛴다**: `for (var i = 0; i < list.length; i++)` 형태는 오류를 발생시키지 않지만, 현재 인덱스의 원소를 제거하면 다음 원소가 현재 인덱스로 이동하여 그 라운드에서 건너뛰어진다. 이는 발견하기 어려운 버그를 만든다.
+- **인덱스 루프는 조용히 건너뛴다**: `for (var i = 0; i < list.length; i++)` 형태는 오류를 발생시키지 않지만, 현재 인덱스의 원소를 제거하면 다음 원소가 현재 인덱스로 이동하여 그 라운드에서 건너뛰어진다. 이는 발견하기 어려운 버그를 만든다. 반대로 루프 조건이 매번 `list.length`를 재평가하므로 알림 중 끝에 원소를 추가하면 길이가 늘어나 같은 라운드에 그 원소도 순회된다.
 
 - **스냅샷 복사는 제거된 리스너를 호출한다**: `List.of`로 복사하면 오류는 없지만, 앞 리스너가 제거한 뒤 리스너도 스냅샷에 포함되어 그 라운드에 호출된다. 이미 dispose된 리스너가 호출될 수 있다.
 
@@ -338,4 +342,4 @@ DeferredRemovalNotifier 테스트
 
 - **dispose 후 addListener/notifyListeners는 StateError**: dispose된 notifier는 더 이상 사용할 수 없으며, 사용 시도는 `StateError`를 던진다.
 
-- **복사 원소 수는 성능 지표**: SnapshotNotifier는 알림마다 리스너 목록을 복사하므로 `copiedElements`는 리스너 수 × 알림 횟수가 된다. DeferredRemovalNotifier는 복사하지 않으므로 복사 원소 수가 0이다. 리스너가 많고 알림이 빈번하면 복사 비용이 클 수 있다.
+- **복사 원소 수는 성능 지표**: SnapshotNotifier는 알림마다 리스너 목록을 복사하므로 `copiedElements`는 리스너 수 × 알림 횟수가 된다. DeferredRemovalNotifier는 알림 중 제거가 없으면 복사하지 않지만, 알림 중 제거가 있었으면 가장 바깥 notify 종료 시 압축 과정에서 남은 리스너 수만큼 새 리스트를 1회 만든다. 리스너가 많고 알림이 빈번하면 Snapshot의 복사 비용이 클 수 있다.

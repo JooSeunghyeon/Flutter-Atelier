@@ -269,6 +269,28 @@ void main() {
     expect(callLog.length == 1 && callLog[0] == 'A', 'A만 실행되고 B는 실행되지 않아야 함');
     print('✓ Naive: 리스너 예외가 뒤 리스너 실행을 막음');
   });
+  test('Naive: 알림 중 add도 다음 moveNext에서 ConcurrentModificationError', () {
+    final NaiveForInNotifier notifier = NaiveForInNotifier();
+    final List<String> callLog = [];
+    late VoidCallback listenerB;
+    final VoidCallback listenerA = () {
+      callLog.add('A');
+      notifier.addListener(listenerB);
+    };
+    listenerB = () {
+      callLog.add('B');
+    };
+    notifier.addListener(listenerA);
+    bool caught = false;
+    try {
+      notifier.notifyListeners();
+    } catch (e) {
+      caught = e is ConcurrentModificationError;
+    }
+    expect(caught, '알림 중 add도 ConcurrentModificationError가 발생해야 함');
+    expect(callLog.length == 1 && callLog[0] == 'A', 'A만 실행되어야 함');
+    print('✓ Naive: 알림 중 add도 다음 moveNext에서 ConcurrentModificationError');
+  });
   print('\nIndexLoopNotifier 테스트\n');
   test('IndexLoop: 자기 제거 시 다음 리스너가 건너뛰어짐', () {
     final IndexLoopNotifier notifier = IndexLoopNotifier();
@@ -309,6 +331,22 @@ void main() {
     notifier.notifyListeners();
     expect(callLog.length == 1 && callLog[0] == 'B', '다음 라운드에는 B가 호출되어야 함');
     print('✓ IndexLoop: 다음 라운드에는 호출됨');
+  });
+  test('IndexLoop: 알림 중 끝에 추가된 리스너가 같은 라운드에 호출됨 (길이 재평가)', () {
+    final IndexLoopNotifier notifier = IndexLoopNotifier();
+    final List<String> callLog = [];
+    late VoidCallback listenerB;
+    final VoidCallback listenerA = () {
+      callLog.add('A');
+      notifier.addListener(listenerB);
+    };
+    listenerB = () {
+      callLog.add('B');
+    };
+    notifier.addListener(listenerA);
+    notifier.notifyListeners();
+    expect(callLog.length == 2 && callLog[0] == 'A' && callLog[1] == 'B', '같은 라운드에 B가 호출되어야 함');
+    print('✓ IndexLoop: 알림 중 끝에 추가된 리스너가 같은 라운드에 호출됨 (길이 재평가)');
   });
   print('\nSnapshotNotifier 테스트\n');
   test('Snapshot: 오류 없음', () {
