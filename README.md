@@ -10,3 +10,4 @@
 - [riverpod-family-same-args-identical](packages/riverpod-family-same-args-identical/README.md): Riverpod 3 family provider에 같은 인자를 두 번 넘겼을 때 두 watch가 같은 인스턴스를 공유하는지 identical로 확인한다.
 - [stream-error-cancel-on-error-ondone](packages/stream-error-cancel-on-error-ondone/README.md): StreamSubscription에서 cancelOnError 옵션에 따른 에러 이벤트 처리와 구독 취소 순서, handleError 필터링, close 후 add/addError의 StateError를 실행으로 검증한다.
 - [late-final-initializer-retry-reentrancy](packages/late-final-initializer-retry-reentrancy/README.md): Dart late final 필드와 최상위 final 지연 초기화의 실패·재진입·순환 동작을 검증하고, 실패 시 재시도 정책을 명시적으로 가진 캐시 설계와 비교한다.
+- [listener-notify-concurrent-modification](packages/listener-notify-concurrent-modification/README.md): 리스너 알림 중 concurrent modification 문제와 Flutter ChangeNotifier의 지연 제거 방식을 4가지 구현으로 비교한다.
