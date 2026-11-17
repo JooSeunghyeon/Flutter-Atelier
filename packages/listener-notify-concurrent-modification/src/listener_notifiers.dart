@@ -105,6 +105,7 @@ class DeferredRemovalNotifier implements ListenerNotifier {
   int _removalsPending = 0;
   int compactions = 0;
   bool _disposed = false;
+  final List<(Object, StackTrace)> errors = [];
 
   @override
   void addListener(VoidCallback listener) {
@@ -140,15 +141,14 @@ class DeferredRemovalNotifier implements ListenerNotifier {
     }
     _notificationDepth++;
     final int lengthAtStart = _listeners.length;
-    final List<Object> errors = [];
     try {
       for (int i = 0; i < lengthAtStart; i++) {
         final VoidCallback? listener = _listeners[i];
         if (listener != null) {
           try {
             listener();
-          } catch (error) {
-            errors.add(error);
+          } catch (error, stackTrace) {
+            errors.add((error, stackTrace));
           }
         }
       }
@@ -158,13 +158,10 @@ class DeferredRemovalNotifier implements ListenerNotifier {
         _compactListeners();
       }
     }
-    if (errors.isNotEmpty) {
-      throw errors.first;
-    }
   }
 
   void _compactListeners() {
-    _listeners = _listeners.where((VoidCallback? listener) => listener != null).cast<VoidCallback?>().toList();
+    _listeners = [for (final VoidCallback? listener in _listeners) if (listener != null) listener];
     _removalsPending = 0;
     compactions++;
   }
@@ -181,6 +178,9 @@ class DeferredRemovalNotifier implements ListenerNotifier {
   }
 
   void dispose() {
+    if (_notificationDepth > 0) {
+      throw StateError('Cannot dispose during notification');
+    }
     _disposed = true;
     _listeners.clear();
   }

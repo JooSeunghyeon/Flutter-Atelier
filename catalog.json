@@ -25,6 +25,6 @@
   },
   {
     "folder": "listener-notify-concurrent-modification",
-    "summary": "리스너 알림 중 concurrent modification 문제와 Flutter ChangeNotifier의 지연 제거 방식을 4가지 구현으로 비교한다."
+    "summary": "리스너 알림 중 ConcurrentModificationError와 Flutter ChangeNotifier의 지연 제거 방식을 4가지 구현으로 비교한다."
   }
 ]
