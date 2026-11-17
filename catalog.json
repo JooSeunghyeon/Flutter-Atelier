@@ -22,5 +22,9 @@
   {
     "folder": "late-final-initializer-retry-reentrancy",
     "summary": "Dart late final 필드와 최상위 final 지연 초기화의 실패·재진입·순환 동작을 검증하고, 실패 시 재시도 정책을 명시적으로 가진 캐시 설계와 비교한다."
+  },
+  {
+    "folder": "listener-notify-concurrent-modification",
+    "summary": "리스너 알림 중 ConcurrentModificationError와 Flutter ChangeNotifier의 지연 제거 방식을 4가지 구현으로 비교한다."
   }
 ]
