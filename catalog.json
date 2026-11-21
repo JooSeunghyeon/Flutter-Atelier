@@ -26,5 +26,9 @@
   {
     "folder": "listener-notify-concurrent-modification",
     "summary": "리스너 알림 중 ConcurrentModificationError와 Flutter ChangeNotifier의 지연 제거 방식을 4가지 구현으로 비교한다."
+  },
+  {
+    "folder": "async-search-stale-response-race",
+    "summary": "검색 입력 중 늦게 도착한 비동기 응답이 최신 결과를 덮어쓰는 문제를 재현하고, 시퀀스 토큰·구독 취소·디바운스 설계로 해결하는 방법을 실행과 테스트로 비교한다."
   }
 ]
