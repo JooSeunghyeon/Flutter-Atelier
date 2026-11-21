@@ -8,14 +8,18 @@ abstract class SearchController {
   final FakeSearchBackend backend;
   SearchResult? _currentResults;
   Object? _currentError;
+  bool _disposed = false;
 
   SearchResult? get currentResults => _currentResults;
   Object? get currentError => _currentError;
   bool get hasError => _currentError != null;
+  bool get isDisposed => _disposed;
 
   Future<void> search(String query);
 
-  void dispose();
+  void dispose() {
+    _disposed = true;
+  }
 }
 
 class NaiveSearch extends SearchController {
@@ -30,15 +34,16 @@ class NaiveSearch extends SearchController {
     }
     try {
       final SearchResult result = await backend.search(query);
-      _currentResults = result;
+      if (!_disposed) {
+        _currentResults = result;
+      }
     } catch (error) {
-      _currentError = error;
-      _currentResults = null;
+      if (!_disposed) {
+        _currentError = error;
+        _currentResults = null;
+      }
     }
   }
-
-  @override
-  void dispose() {}
 }
 
 class SequenceTokenSearch extends SearchController {
@@ -57,19 +62,16 @@ class SequenceTokenSearch extends SearchController {
     }
     try {
       final SearchResult result = await backend.search(query);
-      if (currentRequestId == _requestId) {
+      if (!_disposed && currentRequestId == _requestId) {
         _currentResults = result;
       }
     } catch (error) {
-      if (currentRequestId == _requestId) {
+      if (!_disposed && currentRequestId == _requestId) {
         _currentError = error;
         _currentResults = null;
       }
     }
   }
-
-  @override
-  void dispose() {}
 }
 
 class SubscriptionCancelSearch extends SearchController {
@@ -79,7 +81,7 @@ class SubscriptionCancelSearch extends SearchController {
 
   @override
   Future<void> search(String query) async {
-    await _subscription?.cancel();
+    _subscription?.cancel();
     _subscription = null;
     _currentError = null;
     if (query.isEmpty) {
@@ -89,17 +91,22 @@ class SubscriptionCancelSearch extends SearchController {
     final Future<SearchResult> future = backend.search(query);
     _subscription = future.asStream().listen(
       (SearchResult result) {
-        _currentResults = result;
+        if (!_disposed) {
+          _currentResults = result;
+        }
       },
       onError: (Object error) {
-        _currentError = error;
-        _currentResults = null;
+        if (!_disposed) {
+          _currentError = error;
+          _currentResults = null;
+        }
       },
     );
   }
 
   @override
   void dispose() {
+    super.dispose();
     _subscription?.cancel();
     _subscription = null;
   }
@@ -110,33 +117,49 @@ class DebounceSearch extends SearchController {
 
   final Duration debounceDuration;
   Timer? _debounceTimer;
+  Completer<void>? _currentCompleter;
 
   @override
   Future<void> search(String query) async {
     _debounceTimer?.cancel();
+    if (_currentCompleter != null && !_currentCompleter!.isCompleted) {
+      _currentCompleter!.complete();
+    }
     _currentError = null;
     if (query.isEmpty) {
       _currentResults = null;
       return;
     }
     final Completer<void> completer = Completer<void>();
+    _currentCompleter = completer;
     _debounceTimer = Timer(debounceDuration, () async {
       try {
         final SearchResult result = await backend.search(query);
-        _currentResults = result;
+        if (!_disposed) {
+          _currentResults = result;
+        }
       } catch (error) {
-        _currentError = error;
-        _currentResults = null;
+        if (!_disposed) {
+          _currentError = error;
+          _currentResults = null;
+        }
       }
-      completer.complete();
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
     });
     return completer.future;
   }
 
   @override
   void dispose() {
+    super.dispose();
     _debounceTimer?.cancel();
     _debounceTimer = null;
+    if (_currentCompleter != null && !_currentCompleter!.isCompleted) {
+      _currentCompleter!.complete();
+    }
+    _currentCompleter = null;
   }
 }
 
@@ -148,11 +171,15 @@ class DebounceWithSequenceTokenSearch extends SearchController {
 
   final Duration debounceDuration;
   Timer? _debounceTimer;
+  Completer<void>? _currentCompleter;
   int _requestId = 0;
 
   @override
   Future<void> search(String query) async {
     _debounceTimer?.cancel();
+    if (_currentCompleter != null && !_currentCompleter!.isCompleted) {
+      _currentCompleter!.complete();
+    }
     _requestId++;
     final int currentRequestId = _requestId;
     _currentError = null;
@@ -161,26 +188,34 @@ class DebounceWithSequenceTokenSearch extends SearchController {
       return;
     }
     final Completer<void> completer = Completer<void>();
+    _currentCompleter = completer;
     _debounceTimer = Timer(debounceDuration, () async {
       try {
         final SearchResult result = await backend.search(query);
-        if (currentRequestId == _requestId) {
+        if (!_disposed && currentRequestId == _requestId) {
           _currentResults = result;
         }
       } catch (error) {
-        if (currentRequestId == _requestId) {
+        if (!_disposed && currentRequestId == _requestId) {
           _currentError = error;
           _currentResults = null;
         }
       }
-      completer.complete();
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
     });
     return completer.future;
   }
 
   @override
   void dispose() {
+    super.dispose();
     _debounceTimer?.cancel();
     _debounceTimer = null;
+    if (_currentCompleter != null && !_currentCompleter!.isCompleted) {
+      _currentCompleter!.complete();
+    }
+    _currentCompleter = null;
   }
 }
