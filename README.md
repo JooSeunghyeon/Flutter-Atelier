@@ -11,3 +11,4 @@
 - [stream-error-cancel-on-error-ondone](packages/stream-error-cancel-on-error-ondone/README.md): StreamSubscription에서 cancelOnError 옵션에 따른 에러 이벤트 처리와 구독 취소 순서, handleError 필터링, close 후 add/addError의 StateError를 실행으로 검증한다.
 - [late-final-initializer-retry-reentrancy](packages/late-final-initializer-retry-reentrancy/README.md): Dart late final 필드와 최상위 final 지연 초기화의 실패·재진입·순환 동작을 검증하고, 실패 시 재시도 정책을 명시적으로 가진 캐시 설계와 비교한다.
 - [listener-notify-concurrent-modification](packages/listener-notify-concurrent-modification/README.md): 리스너 알림 중 ConcurrentModificationError와 Flutter ChangeNotifier의 지연 제거 방식을 4가지 구현으로 비교한다.
+- [async-search-stale-response-race](packages/async-search-stale-response-race/README.md): 검색 입력 중 늦게 도착한 비동기 응답이 최신 결과를 덮어쓰는 문제를 재현하고, 시퀀스 토큰·구독 취소·디바운스 설계로 해결하는 방법을 실행과 테스트로 비교한다.
