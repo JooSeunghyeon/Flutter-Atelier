@@ -12,3 +12,4 @@
 - [late-final-initializer-retry-reentrancy](packages/late-final-initializer-retry-reentrancy/README.md): Dart late final 필드와 최상위 final 지연 초기화의 실패·재진입·순환 동작을 검증하고, 실패 시 재시도 정책을 명시적으로 가진 캐시 설계와 비교한다.
 - [listener-notify-concurrent-modification](packages/listener-notify-concurrent-modification/README.md): 리스너 알림 중 ConcurrentModificationError와 Flutter ChangeNotifier의 지연 제거 방식을 4가지 구현으로 비교한다.
 - [async-search-stale-response-race](packages/async-search-stale-response-race/README.md): 검색 입력 중 늦게 도착한 비동기 응답이 최신 결과를 덮어쓰는 문제를 재현하고, 시퀀스 토큰·구독 취소·디바운스 설계로 해결하는 방법을 실행과 테스트로 비교한다.
+- [iterable-lazy-reevaluation-snapshot-memoize](packages/iterable-lazy-reevaluation-snapshot-memoize/README.md): Dart Iterable의 지연 평가와 순회마다 재실행되는 동작을 확인하고, 지연 Iterable 그대로·toList 스냅샷·메모이즈 구현의 콜백 호출 횟수·예외 시점·원본 변경 반영을 비교한다.

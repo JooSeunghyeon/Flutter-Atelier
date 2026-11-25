@@ -30,5 +30,9 @@
   {
     "folder": "async-search-stale-response-race",
     "summary": "검색 입력 중 늦게 도착한 비동기 응답이 최신 결과를 덮어쓰는 문제를 재현하고, 시퀀스 토큰·구독 취소·디바운스 설계로 해결하는 방법을 실행과 테스트로 비교한다."
+  },
+  {
+    "folder": "iterable-lazy-reevaluation-snapshot-memoize",
+    "summary": "Dart Iterable의 지연 평가와 순회마다 재실행되는 동작을 확인하고, 지연 Iterable 그대로·toList 스냅샷·메모이즈 구현의 콜백 호출 횟수·예외 시점·원본 변경 반영을 비교한다."
   }
 ]
