@@ -66,7 +66,7 @@ No issues found!
 ### dart format --set-exit-if-changed .
 
 ```
-Formatted 5 files (0 changed) in 0.02 seconds.
+Formatted 4 files (0 changed) in 0.20 seconds.
 ```
 
 ### dart run src/iterable_lazy_demo.dart
@@ -101,7 +101,7 @@ Formatted 5 files (0 changed) in 0.02 seconds.
 5. 예외 시점: 지연 Iterable은 소비 시점에 예외가 발생한다
 
 ✓    map 생성: 예외 없음
-✓    toList(): IntegerDivisionByZeroException 발생
+✓    toList(): UnsupportedError 발생
 ✓    first: 첫 원소만 평가, 예외 없음 (10)
 
 6. 조기 종료: first, any, take 등은 필요한 만큼만 평가한다
@@ -331,7 +331,7 @@ class _MemoizedIterator<T> implements Iterator<T> {
 
 - **메모이즈는 원본을 한 번만 순회한다**: `MemoizedIterable`은 원본 Iterator를 처음 `moveNext` 호출 시 생성하고, 이후 모든 Iterator가 이를 공유한다. 원본은 필요할 때만 필요한 만큼 앞으로 읽으므로, `first` 호출은 원소 1개만 가져온다.
 
-- **메모이즈 예외 정책**: 콜백에서 예외가 발생하면 캐시에 추가하지 않고, 다음 순회 시 다시 시도한다. 예외를 캐시하면 순회가 항상 같은 위치에서 멈추지만, 재시도하면 콜백이 비결정적일 때 다른 결과를 얻을 수 있다. 이 예제는 재시도 정책을 선택했고, 테스트로 확인한다.
+- **메모이즈 예외 정책**: 콜백에서 예외가 발생하면 캐시에 추가하지 않고, 다음 순회 시 다시 시도한다. 이 예제에서 테스트하는 `[1,0,2].map((x)=>10~/x)` 패턴은 원본이 List 기반 MappedListIterable이므로, 실패한 원소(두 번째, x=0) 위치에 머물러 재시도 시 같은 원소를 다시 평가하고 같은 예외를 던진다. 다른 원본 Iterator에서는 재시도 동작이 달라질 수 있다.
 
 - **런타임 타입 이름**: `MappedListIterable<int, int>`, `WhereIterable<int>` 등은 Dart SDK 내부 클래스다. 런타임 타입을 단언하지 말고 참고용으로만 사용한다. 이 이름은 Dart 버전에 따라 바뀔 수 있다.
 
@@ -342,5 +342,5 @@ class _MemoizedIterator<T> implements Iterator<T> {
 - **단일 스레드**: 이 구현은 단일 스레드 환경을 가정한다. 멀티 스레드에서는 캐시 접근에 동기화가 필요하다.
 - **원본 추가 변경 정책**: 메모이즈는 한 번 소비를 시작한 원본 Iterator를 끝까지 사용한다. 원본 List에 추가한 원소는 메모이즈가 이미 소진된 경우 반영되지 않는다.
 - **메모리 누수 가능성**: `MemoizedIterable`은 한 번 평가한 원소를 계속 가지고 있으므로, 사용하지 않는 메모이즈 인스턴스는 가비지 컬렉션되지 않으면 메모리를 계속 차지한다.
-- **예외 캐시 정책**: 이 구현은 예외를 캐시하지 않고 재시도한다. 예외를 캐시하려면 `_cache`에 `Result<T>` 같은 타입을 저장해야 한다.
+- **예외 재시도는 원본 Iterator 타입에 따라 다름**: 이 구현은 예외를 캐시하지 않고 재시도한다. 테스트에서 확인한 List 기반 MappedListIterable은 실패한 원소 위치에 머물러 재시도 시 같은 예외를 던지지만, 다른 원본 Iterator(예: Stream 기반, 제너레이터)에서는 재시도 동작이 달라질 수 있다.
 - **MappedListIterable 최적화는 Dart 구현 세부사항**: 이 최적화에 의존하는 코드는 Dart 버전이나 플랫폼에 따라 다르게 동작할 수 있다.
